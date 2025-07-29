@@ -289,7 +289,7 @@ class UltraOptimizedScraper:
         tracker = PerformanceTracker()
         tracker.start_request()
 
-        with error_handling_context(operation="ultra_multi_page_scrape", logger=logger):
+        with error_handling_context(operation="ultra_multi_page_scrape", logger=logger) as ctx:
             # Build URLs efficiently
             base_url = "https://www.kleinanzeigen.de"
 
@@ -311,7 +311,7 @@ class UltraOptimizedScraper:
                 params["radius"] = radius
 
             param_string = f"?{urlencode(params)}" if params else ""
-            search_url = base_url + search_path + param_string
+            search_url = base_url + search_path.format(price_path=price_path, page='{page}') + param_string
 
             # Create page fetch tasks
             async def create_page_task(page_num: int):
@@ -380,6 +380,7 @@ class UltraOptimizedScraper:
                 warning_manager.add_warning(
                     f"Success rate below optimal: {success_rate:.1f}%",
                     ErrorSeverity.MEDIUM,
+                    ctx.context,
                     affected_items=["pages_with_failures"],
                     impact_description="Some data may be missing due to page failures",
                 )
@@ -388,6 +389,7 @@ class UltraOptimizedScraper:
                 warning_manager.add_warning(
                     f"Performance below target: {request_metrics.total_time:.1f}s for {page_count} pages",
                     ErrorSeverity.LOW,
+                    ctx.context,
                     impact_description="Consider reducing page count or checking network conditions",
                 )
 

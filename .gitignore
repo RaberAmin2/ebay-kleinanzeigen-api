@@ -58,6 +58,10 @@ Miniconda3*.sh
 # Local development
 .env.local
 .env.development.local
+
+# Notifier — user config (contains tokens) and runtime database
+notifier/searches.yaml
+notifier/searches.db
 .env.test.local
 .env.production.local
 

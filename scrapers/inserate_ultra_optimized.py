@@ -31,7 +31,7 @@ from utils.asyncio_optimizations import (
     EventLoopOptimizer,
     monitor_slow_coroutines,
 )
-from scrapers.inserate_by_url import inject_page
+from utils.kleinanzeigen_url_utils import inject_page
 
 
 def _page_has_old_listings(results: list, min_publish_date: datetime) -> bool:

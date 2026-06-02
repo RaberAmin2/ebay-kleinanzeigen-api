@@ -1,0 +1,29 @@
+# Kleinanzeigen Search Notifier — example configuration
+# Copy this to searches.yaml and edit for your setup.
+
+api_base_url: "http://localhost:8000"          # URL of the ebay-kleinanzeigen-api server
+
+profiles:
+  ramin:
+    telegram_chat_id: "123456789"               # Your Telegram chat ID
+    telegram_token: ""                          # Bot token (or set TELEGRAM_BOT_TOKEN env var)
+    searches:
+      - name: "VW Golf Diesel Kombi"
+        params:
+          category_slug: "s-autos"
+          brands: "volkswagen"
+          year_from: 2018
+          fuel: "diesel"
+          car_type: "kombi"
+          max_price: 25000
+          mileage_from: 150000
+        interval_minutes: 15
+
+      - name: "Audi A4 Avant Automatik"
+        params:
+          category_slug: "s-autos"
+          brands: "audi"
+          transmission: "automatik"
+          year_from: 2020
+          max_price: 35000
+        interval_minutes: 10

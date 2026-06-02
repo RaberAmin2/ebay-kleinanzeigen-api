@@ -1,0 +1,7 @@
+# Kleinanzeigen Notifier — dependencies
+# Install with: pip install -r notifier/requirements.txt
+
+pyyaml>=6.0
+httpx>=0.28
+python-telegram-bot>=21.0
+click>=8.0

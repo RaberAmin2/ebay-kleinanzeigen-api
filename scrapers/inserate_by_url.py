@@ -1,7 +1,4 @@
-"""
-URL-passthrough scraper: takes a full Kleinanzeigen URL and injects page numbers.
-Reuses UltraOptimizedScraper for fetching/extraction; only the URL-building differs.
-"""
+"""URL-passthrough scraper — see utils/kleinanzeigen_url_utils.py for inject_page."""
 
 import asyncio
 import gc
@@ -13,6 +10,7 @@ from typing import Dict, Any, Optional, Tuple
 
 from utils.browser import OptimizedPlaywrightManager
 from utils.performance import PerformanceTracker
+from utils.kleinanzeigen_url_utils import inject_page
 from scrapers.inserate_ultra_optimized import (
     create_ultra_optimized_scraper,
     _page_has_old_listings,
@@ -20,44 +18,6 @@ from scrapers.inserate_ultra_optimized import (
 )
 
 _TOTAL_RESULTS_SELECTOR = {"breadcrump_summary": ".breadcrump-summary"}
-
-
-def inject_page(url: str, page_num: int) -> str:
-    """
-    Strip any existing seite/s-seite segment and inject the requested page number.
-
-    Category URLs: seite:N is inserted immediately before the filter segment
-    (the segment matching k?\\d*c\\d+), preserving any extra path components
-    (e.g. anzeige:angebote, preis::N) that appear before it:
-      /s-autos/anzeige:angebote/preis::15000/seite:2/c216+...
-    Generic search URLs (no filter segment): s-seite:N appended before the query string.
-    """
-    from urllib.parse import urlparse, urlunparse, unquote
-
-    parsed = urlparse(url)
-    path = unquote(parsed.path)
-
-    # Strip any existing page segment
-    segments = [
-        s
-        for s in path.strip("/").split("/")
-        if s and not re.match(r"^s-seite:\d+$", s) and not re.match(r"^seite:\d+$", s)
-    ]
-
-    if page_num > 1:
-        filter_idx = next(
-            (i for i, s in enumerate(segments) if re.match(r"^k?\d*c\d+", s)),
-            None,
-        )
-        if filter_idx is not None:
-            # Insert seite:N directly before the filter segment
-            segments.insert(filter_idx, f"seite:{page_num}")
-        else:
-            # Generic search: append s-seite:N before query string
-            segments.append(f"s-seite:{page_num}")
-
-    new_path = "/" + "/".join(segments)
-    return urlunparse(parsed._replace(path=new_path))
 
 
 def _parse_breadcrumb(breadcrump_text: str) -> Tuple[Optional[int], Optional[int]]:

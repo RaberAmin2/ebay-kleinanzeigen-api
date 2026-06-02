@@ -49,6 +49,12 @@ playwright/.cache/
 logs/
 log/
 
+# Testing
+.pytest_cache/
+
+# Conda / large installers
+Miniconda3*.sh
+
 # Local development
 .env.local
 .env.development.local

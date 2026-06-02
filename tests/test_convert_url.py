@@ -28,16 +28,17 @@ def test_category_only():
         "https://www.kleinanzeigen.de/s-wohnwagen-mobile/wohnwagen/"
         "c220+wohnwagen_mobile.art_s:wohnwagen+wohnwagen_mobile.ez_i:2008%2C"
     )
-    assert data["inserate_params"]["page_count"] == 1
-    assert "query" not in data["inserate_params"]
+    ip = data["inserate_params"]
+    assert ip["page_count"] == 1
+    assert "query" not in ip
+    assert ip["category_slug"] == "s-wohnwagen-mobile"
+    assert ip["category_id"] == 220
+    assert ip["art"] == "wohnwagen"
+    assert ip["year_from"] == 2008
+    assert ip["year_to"] is None
 
     u = data["unmapped"]
-    assert u["category_slug"] == "s-wohnwagen-mobile"
     assert u["subcategory"] == "wohnwagen"
-    assert u["category_id"] == 220
-    assert u["art"] == "wohnwagen"
-    assert u["year_from"] == 2008
-    assert u["year_to"] is None
 
 
 # ── Full URL: keyword, price range, brands, year ─────────────────────────────
@@ -56,12 +57,14 @@ def test_full_url():
     assert ip["min_price"] == 1000
     assert ip["max_price"] == 15000
     assert ip["page_count"] == 1
+    assert ip["category_id"] == 220
+    assert ip["art"] == "wohnwagen"
+    assert ip["year_from"] == 2008
+    assert ip["brands"] == "fendt,knaus"
+    assert ip["category_slug"] == "s-wohnwagen-mobile"
 
     u = data["unmapped"]
-    assert u["category_id"] == 220
-    assert u["art"] == "wohnwagen"
-    assert u["year_from"] == 2008
-    assert sorted(u["brands"]) == ["fendt", "knaus"]
+    assert u["subcategory"] == "wohnwagen"
 
 
 # ── Query-string keyword + location + radius ─────────────────────────────────
@@ -101,7 +104,7 @@ def test_single_brand():
         "https://www.kleinanzeigen.de/s-wohnwagen-mobile/wohnwagen/"
         "c220+wohnwagen_mobile.marke_s:fendt"
     )
-    assert data["unmapped"]["brands"] == ["fendt"]
+    assert data["inserate_params"]["brands"] == "fendt"
 
 
 # ── Missing / empty URL ───────────────────────────────────────────────────────
@@ -113,24 +116,26 @@ def test_empty_url_returns_defaults():
     assert data["unmapped"] == {}
 
 
-# ── Unmapped keys are NOT in inserate_params ─────────────────────────────────
+# ── Unmapped → now mapped keys ───────────────────────────────────────────────
 
 
-def test_category_keys_not_in_inserate_params():
+def test_category_keys_now_in_inserate_params():
+    """Category-level filter keys that were previously unmapped are now
+    expressed via /inserate structured params."""
     data = post(
         "https://www.kleinanzeigen.de/s-wohnwagen-mobile/wohnwagen/"
         "c220+wohnwagen_mobile.art_s:wohnwagen"
     )
-    for key in (
-        "category_slug",
-        "subcategory",
-        "category_id",
-        "art",
-        "brands",
-        "year_from",
-        "year_to",
-    ):
-        assert key not in data["inserate_params"]
+    ip = data["inserate_params"]
+    # These are now mapped to /inserate params
+    assert ip["category_slug"] == "s-wohnwagen-mobile"
+    assert ip["category_id"] == 220
+    assert ip["art"] == "wohnwagen"
+    # The subcategory is kept in unmapped for now (used for path building)
+    assert data["unmapped"]["subcategory"] == "wohnwagen"
+    # Not present in this URL
+    for key in ("brands", "year_from", "year_to", "fuel", "transmission", "car_type", "mileage_from"):
+        assert ip.get(key) is None
 
 
 # ── Autos URLs ────────────────────────────────────────────────────────────────
@@ -142,11 +147,11 @@ def test_autos_category_only():
     ip = data["inserate_params"]
     assert "query" not in ip
     assert ip["page_count"] == 1
+    assert ip["category_slug"] == "s-autos"
+    assert ip["category_id"] == 216
 
     u = data["unmapped"]
-    assert u["category_slug"] == "s-autos"
     assert u["subcategory"] == "klima"
-    assert u["category_id"] == 216
 
 
 def test_autos_with_brand_and_keyword():
@@ -157,12 +162,12 @@ def test_autos_with_brand_and_keyword():
     ip = data["inserate_params"]
     assert ip["query"] == "klima"
     assert ip["page_count"] == 1
+    assert ip["category_slug"] == "s-autos"
+    assert ip["category_id"] == 216
+    assert ip["brands"] == "volkswagen"
 
     u = data["unmapped"]
-    assert u["category_slug"] == "s-autos"
     assert u["subcategory"] == "volkswagen"
-    assert u["category_id"] == 216
-    assert u["brands"] == ["volkswagen"]
 
 
 def test_autos_full_filters():
@@ -174,15 +179,17 @@ def test_autos_full_filters():
     ip = data["inserate_params"]
     assert ip["query"] == "klima"
     assert ip["page_count"] == 1
+    assert ip["category_slug"] == "s-autos"
+    assert ip["category_id"] == 216
+    assert ip["year_from"] == 2008
+    assert ip["year_to"] is None
+    assert ip["brands"] == "volkswagen"
+    assert ip["fuel"] == "lpg"
+    assert ip["transmission"] == "automatik"
+    assert ip["car_type"] == "kombi,suv"
+    assert ip["mileage_from"] == 2
 
     u = data["unmapped"]
-    assert u["category_id"] == 216
-    assert u["year_from"] == 2008
-    assert u["year_to"] is None
-    assert u["brands"] == ["volkswagen"]
-
-    ua = u["unknown_attrs"]
-    assert ua["autos.fuel_s"] == "lpg"
-    assert ua["autos.shift_s"] == "automatik"
-    assert ua["autos.typ_s"] == "(kombi,suv)"
-    assert "autos.km_i" in ua
+    assert u["subcategory"] == "volkswagen"
+    # No unknown_attrs left — all recognized filters are now mapped
+    assert "unknown_attrs" not in u

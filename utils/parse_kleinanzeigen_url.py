@@ -98,7 +98,50 @@ def parse_kleinanzeigen_url(url: str) -> dict:
             else:
                 result.setdefault("unknown_attrs", {})[key] = value
 
+    # ── Post-process unknown_attrs into known keys ─────────────────────────
+    _promote_known_attrs(result)
+
     return result
+
+
+def _promote_known_attrs(result: dict) -> None:
+    """Move known filter attributes from unknown_attrs into top-level keys."""
+    ua = result.get("unknown_attrs", {})
+    if not ua:
+        return
+
+    for key, value in list(ua.items()):
+        # Fuel — autos.fuel_s:lpg or autos.fuel_s:(cng,lpg)
+        if key.endswith(".fuel_s"):
+            if value.startswith("(") and value.endswith(")"):
+                result["fuel"] = value[1:-1].split(",")
+            else:
+                result["fuel"] = [value]
+            del ua[key]
+
+        # Transmission — autos.shift_s:automatik
+        elif key.endswith(".shift_s"):
+            result["transmission"] = value
+            del ua[key]
+
+        # Car type — autos.typ_s:(kombi,suv) or autos.typ_s:kombi
+        elif key.endswith(".typ_s"):
+            if value.startswith("(") and value.endswith(")"):
+                result["car_type"] = value[1:-1].split(",")
+            else:
+                result["car_type"] = [value]
+            del ua[key]
+
+        # Mileage — autos.km_i:2, (trailing comma = open-ended)
+        elif key.endswith(".km_i"):
+            km_str = value.rstrip(",")
+            if km_str:
+                result["mileage_from"] = int(km_str)
+            del ua[key]
+
+    # Clean up empty unknown_attrs
+    if not ua:
+        result.pop("unknown_attrs", None)
 
 
 # Keys that map directly or indirectly to /inserate params
@@ -110,6 +153,20 @@ _MAPPED_SOURCE_KEYS = {
     "min_price",
     "max_price",
     "page",
+    # Category-level filters now supported by /inserate
+    "category_slug",
+    "category_id",
+    "art",
+    "year_from",
+    "year_to",
+    "brands",
+    "fuel",
+    "transmission",
+    "car_type",
+    "mileage_from",
+    # Note: "subcategory" is intentionally NOT listed here — it stays in
+    # unmapped because /inserate has no subcategory param (the category
+    # slug + filter segment fully specify the category scope).
 }
 
 
@@ -134,6 +191,20 @@ def map_to_inserate_params(parsed: dict) -> tuple[dict, dict]:
             inserate_params[key] = parsed[key]
 
     inserate_params["page_count"] = parsed.get("page", 1)
+
+    # ── Category-level filters ────────────────────────────────────────────
+    for key in (
+        "category_slug", "category_id",
+        "year_from", "year_to",
+        "art", "transmission", "mileage_from",
+    ):
+        if key in parsed:
+            inserate_params[key] = parsed[key]
+
+    # list-type params: join with comma for query-string representation
+    for key in ("brands", "fuel", "car_type"):
+        if key in parsed:
+            inserate_params[key] = ",".join(parsed[key])
 
     unmapped = {k: v for k, v in parsed.items() if k not in _MAPPED_SOURCE_KEYS}
 

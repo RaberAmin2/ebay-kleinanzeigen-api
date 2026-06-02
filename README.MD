@@ -125,6 +125,16 @@ The API will be available at `http://localhost:8000`
 - **`max_price`** *(integer, optional)*: The maximum price in Euros for the listings (e.g., `500` for at most 500 Euros).
 - **`page_count`** *(integer, optional)*: The number of pages to search or return (e.g., `5` for the first 5 pages, default is 1, max: 20 pages).
 - **`min_publish_date`** *(datetime, optional)*: Stop fetching once a page contains listings published before this datetime. Listings older than the threshold are removed from the final results. Format: `YYYY-MM-DDTHH:MM:SS` (e.g., `2026-05-03T08:00:00`). Useful for intraday runs that should only collect new listings.
+- **`category_slug`** *(string, optional)*: Category slug from a Kleinanzeigen URL, e.g. `s-autos` (cars) or `s-wohnwagen-mobile` (caravans). Activates category-level filters below.
+- **`category_id`** *(integer, optional)*: Numeric category ID (e.g. `216` for autos, `220` for wohnwagen-mobile). Auto-resolved from `category_slug` if omitted.
+- **`year_from`** *(integer, optional)*: Minimum year of manufacture / Erstzulassung (e.g. `2008`).
+- **`year_to`** *(integer, optional)*: Maximum year of manufacture. Omit for open-ended upper bound.
+- **`brands`** *(string, optional)*: Comma-separated brand names, e.g. `volkswagen,audi`.
+- **`fuel`** *(string, optional)*: Comma-separated fuel types, e.g. `lpg,cng` (accepted: `benzin`, `diesel`, `lpg`, `cng`, `elektro`, `hybrid`).
+- **`transmission`** *(string, optional)*: `automatik` or `manuell`.
+- **`car_type`** *(string, optional)*: Comma-separated car types, e.g. `kombi,suv` (accepted: `kombi`, `suv`, `limousine`, `cabrio`, `coupe`, `kleinwagen`, `van`, `pickup`, `sportwagen`).
+- **`mileage_from`** *(integer, optional)*: Maximum mileage in km (open-ended upper bound).
+- **`art`** *(string, optional)*: Article type, e.g. `wohnwagen` for caravans.
 
 ##### Example Requests
 
@@ -135,6 +145,11 @@ GET /inserate?query=fahrrad&location=10178&radius=5&min_price=200&page_count=5
 **With `min_publish_date` — stop when listings older than this morning are reached:**
 ```sh
 curl "http://localhost:8000/inserate?query=fahrrad&page_count=10&min_publish_date=2026-05-04T08:00:00"
+```
+
+**With structured category filters — VW Kombi/SUV, Automatik, LPG, ab 2008:**
+```sh
+curl "http://localhost:8000/inserate?category_slug=s-autos&brands=volkswagen&year_from=2008&fuel=lpg&transmission=automatik&car_type=kombi,suv&page_count=3"
 ```
 
 #### 2. Fetch Listing Details
@@ -422,7 +437,7 @@ curl -s -X POST http://localhost:8000/inserate-by-url \
 
 **Endpoint:** `POST /convert-url`
 
-**Description:** Parses a Kleinanzeigen URL and returns two groups of parameters: `inserate_params` (what the `/inserate` endpoint currently understands) and `unmapped` (filters not yet supported by `/inserate`, such as category, brand, year, or transmission). Useful for inspecting which parts of a URL can be expressed via the structured API.
+**Description:** Parses a Kleinanzeigen URL and returns two groups of parameters: `inserate_params` (what the `/inserate` endpoint can express as structured query parameters) and `unmapped` (any remaining path segments or filters not yet covered, such as subcategory names). Use this to inspect which parts of a URL can be expressed via the structured API.
 
 ##### Request Body
 
@@ -464,15 +479,15 @@ curl -X POST http://localhost:8000/convert-url \
 {
   "inserate_params": {
     "query": "klima",
-    "page_count": 1
-  },
-  "unmapped": {
+    "page_count": 1,
     "category_slug": "s-autos",
-    "subcategory": "volkswagen",
     "category_id": 216,
     "year_from": 2008,
     "year_to": null,
-    "brands": ["volkswagen"]
+    "brands": "volkswagen"
+  },
+  "unmapped": {
+    "subcategory": "volkswagen"
   }
 }
 ```

@@ -10,12 +10,12 @@ import time
 import random
 import gc
 from datetime import datetime, date, timedelta
-from urllib.parse import urlencode
 from typing import List, Dict, Any, Optional, Tuple
 
 from fastapi import HTTPException
 
 from utils.browser import OptimizedPlaywrightManager
+from utils.build_kleinanzeigen_url import build_filter_url
 from utils.performance import PageMetrics, PerformanceTracker
 from utils.error_handling import (
     ErrorLogger,
@@ -31,6 +31,7 @@ from utils.asyncio_optimizations import (
     EventLoopOptimizer,
     monitor_slow_coroutines,
 )
+from scrapers.inserate_by_url import inject_page
 
 
 def _page_has_old_listings(results: list, min_publish_date: datetime) -> bool:
@@ -353,6 +354,17 @@ class UltraOptimizedScraper:
         max_price: int = None,
         page_count: int = 1,
         min_publish_date: datetime = None,
+        # Structured category-level filters
+        category_slug: str = None,
+        category_id: int = None,
+        year_from: int = None,
+        year_to: int = None,
+        brands: list = None,
+        fuel: list = None,
+        transmission: str = None,
+        car_type: list = None,
+        mileage_from: int = None,
+        art: str = None,
     ) -> Dict[str, Any]:
         """
         Ultra-optimized multi-page scraping with all performance enhancements.
@@ -370,36 +382,31 @@ class UltraOptimizedScraper:
         with error_handling_context(
             operation="ultra_multi_page_scrape", logger=logger
         ) as ctx:
-            # Build URLs efficiently
-            base_url = "https://www.kleinanzeigen.de"
-
-            # Optimized URL building
-            price_path = ""
-            if min_price is not None or max_price is not None:
-                min_str = str(min_price) if min_price is not None else ""
-                max_str = str(max_price) if max_price is not None else ""
-                price_path = f"/preis:{min_str}:{max_str}"
-
-            search_path = f"{price_path}/s-seite:{{page}}"
-
-            params = {}
-            if query:
-                params["keywords"] = query
-            if location:
-                params["locationStr"] = location
-            if radius:
-                params["radius"] = radius
-
-            param_string = f"?{urlencode(params)}" if params else ""
-            search_url = (
-                base_url
-                + search_path.format(price_path=price_path, page="{page}")
-                + param_string
+            # Build URL template using the structured filter builder.
+            # When category filters are provided, the URL includes the full
+            # filter segment. Otherwise, falls back to generic search URL.
+            search_url_template = build_filter_url(
+                category_slug=category_slug,
+                category_id=category_id,
+                query=query,
+                location=location,
+                radius=radius,
+                min_price=min_price,
+                max_price=max_price,
+                year_from=year_from,
+                year_to=year_to,
+                brands=brands,
+                fuel=fuel,
+                transmission=transmission,
+                car_type=car_type,
+                mileage_from=mileage_from,
+                art=art,
+                page=1,  # template: page injected below
             )
 
             # Create page fetch tasks
             async def create_page_task(page_num: int):
-                url = search_url.format(page=page_num)
+                url = inject_page(search_url_template, page_num)
                 return await self.ultra_optimized_fetch_page(url, page_num)
 
             # Use memory-optimized batch processing
@@ -558,6 +565,17 @@ async def ultra_optimized_scrape_inserate(
     max_price: int = None,
     page_count: int = 1,
     min_publish_date: datetime = None,
+    # Structured category-level filters
+    category_slug: str = None,
+    category_id: int = None,
+    year_from: int = None,
+    year_to: int = None,
+    brands: list = None,
+    fuel: list = None,
+    transmission: str = None,
+    car_type: list = None,
+    mileage_from: int = None,
+    art: str = None,
 ) -> Dict[str, Any]:
     """
     Direct function for ultra-optimized scraping.
@@ -580,6 +598,16 @@ async def ultra_optimized_scrape_inserate(
             max_price=max_price,
             page_count=page_count,
             min_publish_date=min_publish_date,
+            category_slug=category_slug,
+            category_id=category_id,
+            year_from=year_from,
+            year_to=year_to,
+            brands=brands,
+            fuel=fuel,
+            transmission=transmission,
+            car_type=car_type,
+            mileage_from=mileage_from,
+            art=art,
         )
     finally:
         await scraper.cleanup()

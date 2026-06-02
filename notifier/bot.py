@@ -38,7 +38,7 @@ from notifier.notify.telegram import TelegramNotifier
 logger = logging.getLogger(__name__)
 
 # Conversation states for /addsearch wizard
-ASK_NAME, ASK_CATEGORY, ASK_BRANDS, ASK_YEAR_FROM, ASK_MAX_PRICE, ASK_INTERVAL = range(6)
+ASK_NAME, ASK_QUERY, ASK_CATEGORY, ASK_BRANDS, ASK_YEAR_FROM, ASK_MAX_PRICE, ASK_INTERVAL = range(7)
 
 # Common categories and filter presets for quick selection
 CATEGORIES = [
@@ -81,13 +81,21 @@ class NotifierBot:
         profile = self._get_profile(chat_id)
         if not profile:
             asyncio.create_task(
-                update.message.reply_text(
-                    "❌ Dein Telegram-Chat ist nicht in der Konfiguration registriert. "
-                    "Füge deine Chat-ID zur `searches.yaml` hinzu."
-                )
+                self._reply(update, "❌ Dein Telegram-Chat ist nicht in der Konfiguration "
+                              "registriert. Füge deine Chat-ID zur `searches.yaml` hinzu.")
             )
             return None
         return profile
+
+    async def _reply(self, update: Update, text: str, **kwargs) -> None:
+        """Safely reply to a message, falling back to bot.send_message if needed."""
+        msg = update.effective_message
+        if msg:
+            await msg.reply_text(text, **kwargs)
+        elif update.effective_chat:
+            await update.get_bot().send_message(
+                chat_id=update.effective_chat.id, text=text, **kwargs
+            )
 
     # ── Commands ────────────────────────────────────────────────────────
 
@@ -107,7 +115,7 @@ class NotifierBot:
             f"Pausierte Suchen: {len(paused)}\n\n"
             f"Nutze /help für alle Befehle."
         )
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await self._reply(update, msg, parse_mode="Markdown")
 
     async def help_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         msg = (
@@ -121,7 +129,7 @@ class NotifierBot:
             "/stats — Statistiken\n"
             "/help — Diese Hilfe"
         )
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await self._reply(update, msg, parse_mode="Markdown")
 
     async def searches(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         self._reload()
@@ -130,16 +138,15 @@ class NotifierBot:
             return
 
         if not profile.searches:
-            await update.message.reply_text("Keine Suchen konfiguriert. Nutze /addsearch.")
+            await self._reply(update, "Keine Suchen konfiguriert. Nutze /addsearch.")
             return
 
         for s in profile.searches:
             status = "⏸" if s.paused else "🟢"
             params = ", ".join(f"{k}={v}" for k, v in s.params.items())
-            await update.message.reply_text(
-                f"{status} *{s.name}* — alle {s.interval_minutes} min\n"
-                f"  _{params}_",
-                parse_mode="Markdown",
+            await self._reply(update, 
+                f"{status} '{s.name}' — alle {s.interval_minutes} min\n"
+                f"  {params}",
             )
 
     async def pause(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -150,17 +157,17 @@ class NotifierBot:
 
         name = " ".join(context.args) if context.args else ""
         if not name:
-            await update.message.reply_text("Nutzung: /pause <Suchname>")
+            await self._reply(update, "Nutzung: /pause <Suchname>")
             return
 
         for s in profile.searches:
             if s.name.lower() == name.lower():
                 s.paused = True
                 self.config.save()
-                await update.message.reply_text(f"⏸ Suche '{s.name}' pausiert.")
+                await self._reply(update, f"⏸ Suche '{s.name}' pausiert.")
                 return
 
-        await update.message.reply_text(f"❌ Suche '{name}' nicht gefunden.")
+        await self._reply(update, f"❌ Suche '{name}' nicht gefunden.")
 
     async def resume(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         self._reload()
@@ -170,17 +177,17 @@ class NotifierBot:
 
         name = " ".join(context.args) if context.args else ""
         if not name:
-            await update.message.reply_text("Nutzung: /resume <Suchname>")
+            await self._reply(update, "Nutzung: /resume <Suchname>")
             return
 
         for s in profile.searches:
             if s.name.lower() == name.lower():
                 s.paused = False
                 self.config.save()
-                await update.message.reply_text(f"🟢 Suche '{s.name}' fortgesetzt.")
+                await self._reply(update, f"🟢 Suche '{s.name}' fortgesetzt.")
                 return
 
-        await update.message.reply_text(f"❌ Suche '{name}' nicht gefunden.")
+        await self._reply(update, f"❌ Suche '{name}' nicht gefunden.")
 
     async def removesearch(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         self._reload()
@@ -190,17 +197,17 @@ class NotifierBot:
 
         name = " ".join(context.args) if context.args else ""
         if not name:
-            await update.message.reply_text("Nutzung: /removesearch <Suchname>")
+            await self._reply(update, "Nutzung: /removesearch <Suchname>")
             return
 
         for i, s in enumerate(profile.searches):
             if s.name.lower() == name.lower():
                 removed = profile.searches.pop(i)
                 self.config.save()
-                await update.message.reply_text(f"🗑 Suche '{removed.name}' entfernt.")
+                await self._reply(update, f"🗑 Suche '{removed.name}' entfernt.")
                 return
 
-        await update.message.reply_text(f"❌ Suche '{name}' nicht gefunden.")
+        await self._reply(update, f"❌ Suche '{name}' nicht gefunden.")
 
     async def pollnow(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         self._reload()
@@ -209,10 +216,10 @@ class NotifierBot:
             return
 
         if not profile.searches:
-            await update.message.reply_text("Keine Suchen zum Prüfen.")
+            await self._reply(update, "Keine Suchen zum Prüfen.")
             return
 
-        await update.message.reply_text("🔍 Prüfe neue Inserate...")
+        await self._reply(update, "🔍 Prüfe neue Inserate...")
 
         db = NotifierDB(self.db_path)
         notifier = None
@@ -230,15 +237,15 @@ class NotifierBot:
                 if not search.paused:
                     result = await engine.poll_search(search)
                     if result["error"]:
-                        await update.message.reply_text(
+                        await self._reply(update, 
                             f"❌ {search.name}: {result['error']}"
                         )
                     elif result["new_listings"] == 0:
-                        await update.message.reply_text(
+                        await self._reply(update, 
                             f"✅ {search.name}: keine neuen ({result['listings_found']} gesamt)"
                         )
                     else:
-                        await update.message.reply_text(
+                        await self._reply(update, 
                             f"🆕 {search.name}: *{result['new_listings']} neue* "
                             f"({result['listings_found']} gesamt)",
                             parse_mode="Markdown",
@@ -260,7 +267,7 @@ class NotifierBot:
                 f"Benachrichtigungen: {s['total_notifications']}\n"
                 f"Letzter Lauf: {s['last_run'] or 'nie'}"
             )
-            await update.message.reply_text(msg, parse_mode="Markdown")
+            await self._reply(update, msg, parse_mode="Markdown")
         finally:
             db.close()
 
@@ -273,7 +280,7 @@ class NotifierBot:
             return ConversationHandler.END
 
         context.user_data["add_profile"] = profile.name
-        await update.message.reply_text(
+        await self._reply(update, 
             "Wie soll die Suche heißen? (z.B. 'VW Golf Diesel')",
         )
         return ASK_NAME
@@ -281,16 +288,27 @@ class NotifierBot:
     async def addsearch_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         name = update.message.text.strip()
         if not name:
-            await update.message.reply_text("Bitte gib einen Namen ein.")
+            await self._reply(update, "Bitte gib einen Namen ein.")
             return ASK_NAME
 
         context.user_data["add_name"] = name
+
+        await self._reply(update, 
+            "Suchbegriff? (z.B. 'Klima', 'TDI')\n"
+            "Oder '-' für keinen Suchbegriff."
+        )
+        return ASK_QUERY
+
+    async def addsearch_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        text = update.message.text.strip()
+        if text and text != "-":
+            context.user_data["add_query"] = text
 
         keyboard = [
             [InlineKeyboardButton(label, callback_data=f"cat_{value}")]
             for label, value in CATEGORIES
         ]
-        await update.message.reply_text(
+        await self._reply(update, 
             "Wähle eine Kategorie:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
@@ -316,7 +334,7 @@ class NotifierBot:
         if text and text != "-":
             context.user_data["add_brands"] = text
 
-        await update.message.reply_text(
+        await self._reply(update, 
             "Baujahr ab? (z.B. 2018)\nOder '-' für keinen Filter."
         )
         return ASK_YEAR_FROM
@@ -326,7 +344,7 @@ class NotifierBot:
         if text and text != "-" and text.isdigit():
             context.user_data["add_year_from"] = int(text)
 
-        await update.message.reply_text(
+        await self._reply(update, 
             "Maximalpreis in €? (z.B. 25000)\nOder '-' für keinen Filter."
         )
         return ASK_MAX_PRICE
@@ -336,7 +354,7 @@ class NotifierBot:
         if text and text != "-" and text.isdigit():
             context.user_data["add_max_price"] = int(text)
 
-        await update.message.reply_text(
+        await self._reply(update, 
             "Prüfintervall in Minuten? (z.B. 15)\nStandard: 15"
         )
         return ASK_INTERVAL
@@ -347,6 +365,8 @@ class NotifierBot:
 
         # Build params dict
         params: dict[str, Any] = {}
+        if context.user_data.get("add_query"):
+            params["query"] = context.user_data["add_query"]
         if context.user_data.get("add_category"):
             params["category_slug"] = context.user_data["add_category"]
         if context.user_data.get("add_brands"):
@@ -363,7 +383,7 @@ class NotifierBot:
         self._reload()
         profile = self.config.get_profile(profile_name)
         if not profile:
-            await update.message.reply_text("❌ Profil nicht gefunden.")
+            await self._reply(update, "❌ Profil nicht gefunden.")
             return ConversationHandler.END
 
         from notifier.config import SearchConfig
@@ -375,19 +395,18 @@ class NotifierBot:
         self.config.save()
 
         params_str = ", ".join(f"{k}={v}" for k, v in params.items())
-        await update.message.reply_text(
-            f"✅ Suche *{search_name}* hinzugefügt!\n"
+        await self._reply(update, 
+            f"✅ Suche '{search_name}' hinzugefügt!\n"
             f"  {params_str}\n"
             f"  Intervall: {interval} min\n\n"
             f"Nutze /searches zum Anzeigen.",
-            parse_mode="Markdown",
         )
 
         context.user_data.clear()
         return ConversationHandler.END
 
     async def addsearch_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        await update.message.reply_text("Abgebrochen.")
+        await self._reply(update, "Abgebrochen.")
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -426,6 +445,7 @@ class NotifierBot:
             entry_points=[CommandHandler("addsearch", self.addsearch_start)],
             states={
                 ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.addsearch_name)],
+                ASK_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.addsearch_query)],
                 ASK_CATEGORY: [CallbackQueryHandler(self.addsearch_category, pattern="^cat_")],
                 ASK_BRANDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.addsearch_brands)],
                 ASK_YEAR_FROM: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.addsearch_year)],

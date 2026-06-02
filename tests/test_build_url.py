@@ -51,19 +51,19 @@ def test_price_max_only():
 def test_category_slug_resolves_prefix():
     url = build_filter_url(category_slug="s-autos")
     assert "/s-autos/" in url
-    assert "k0c216" in url
+    assert "c216" in url
 
 
 def test_category_wohnwagen():
     url = build_filter_url(category_slug="s-wohnwagen-mobile")
     assert "/s-wohnwagen-mobile/" in url
-    assert "k0c220" in url
+    assert "c220" in url
 
 
 def test_category_with_query():
     url = build_filter_url(category_slug="s-autos", query="klima")
     assert "/s-autos/" in url
-    assert "k0c216" in url
+    assert "c216" in url
     # For category URLs, query does NOT go in query string
     assert "keywords" not in url
 
@@ -178,7 +178,7 @@ def test_full_autos_filters():
         car_type=["kombi", "suv"],
     )
     assert "/s-autos/" in url
-    assert "k0c216" in url
+    assert "c216" in url
     assert "autos.ez_i:2008," in url
     assert "autos.fuel_s:lpg" in url
     assert "autos.km_i:2," in url
@@ -187,10 +187,10 @@ def test_full_autos_filters():
     assert "autos.typ_s:(kombi,suv)" in url
 
     # Verify the filter segment is properly joined with +
-    filter_idx = url.index("k0c216")
+    filter_idx = url.index("c216")
     filter_segment = url[filter_idx:]
     parts = filter_segment.split("+")
-    assert len(parts) == 7  # k0c216 + 6 filters
+    assert len(parts) == 7  # c216 + 6 filters
 
 
 # ── Round-trip tests (build → parse → compare) ──────────────────────────────

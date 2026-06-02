@@ -18,26 +18,40 @@ logger = logging.getLogger(__name__)
 # Max Telegram message length (4096 characters)
 _MAX_LENGTH = 4000  # leave some headroom
 
+# Characters that must be escaped in Telegram MarkdownV2
+_MARKDOWN_ESCAPE_CHARS = str.maketrans({
+    '_': r'\_', '*': r'\*', '[': r'\[', ']': r'\]',
+    '(': r'\(', ')': r'\)', '~': r'\~', '`': r'\`',
+    '>': r'\>', '#': r'\#', '+': r'\+', '-': r'\-',
+    '=': r'\=', '|': r'\|', '{': r'\{', '}': r'\}',
+    '.': r'\.', '!': r'\!',
+})
+
+
+def _escape_md(text: str) -> str:
+    """Escape Markdown special characters in text for Telegram."""
+    return text.translate(_MARKDOWN_ESCAPE_CHARS)
+
 
 def _format_listing(listing: dict[str, Any], search_name: str = "") -> str:
     """Format a listing dict into a Telegram message string."""
-    title = listing.get("title", "Kein Titel")
+    title = _escape_md(listing.get("title", "Kein Titel").strip()[:200])
     price = listing.get("price", "") or "VB"
-    desc = listing.get("description", "")
+    desc = _escape_md(listing.get("description", "").strip()[:300])
     url = listing.get("url", "")
     published = listing.get("published_at", "")
     location_city = listing.get("location", {}).get("city", "") if isinstance(listing.get("location"), dict) else ""
 
     lines = [
-        f"🔔 *Neues Inserat* — {search_name}" if search_name else "🔔 *Neues Inserat*",
+        f"🔔 *Neues Inserat* — {_escape_md(search_name)}" if search_name else "🔔 *Neues Inserat*",
         "",
-        f"*{title.strip()[:200]}*",
+        f"*{title}*",
         f"💰 {price} €",
     ]
     if location_city:
-        lines.append(f"📍 {location_city}")
+        lines.append(f"📍 {_escape_md(location_city)}")
     if desc:
-        lines.append(f"_{desc.strip()[:300]}_")
+        lines.append(f"_{desc}_")
     if published:
         lines.append(f"📅 {published[:16].replace('T', ' ')}")
 
@@ -92,4 +106,7 @@ class TelegramNotifier(BaseNotifier):
                     logger.error("Telegram retry also failed: %s", e2)
 
     async def close(self) -> None:
-        await self.bot.close()
+        try:
+            await self.bot.close()
+        except Exception:
+            pass  # bot may already be closed or token invalid

@@ -70,10 +70,11 @@ def build_filter_url(
         path_parts.append(category_slug)
 
     # ── Path segments between category and filter ──────────────────────────
-    # Query keyword goes in the path for category URLs (but NOT as a
-    # subcategory — subcategories like "klima", "volkswagen" are handled
-    # by the filter segment, so we skip them in the path to keep URLs
-    # clean and canonical).
+    # Kleinanzeigen requires "anzeige:angebote" (all offers) or a subcategory
+    # before filter segments like preis: or seite:. Without it, price filters
+    # are interpreted as search keywords.
+    if category_slug:
+        path_parts.append("anzeige:angebote")
 
     # ── Price segment ──────────────────────────────────────────────────────
     if min_price is not None or max_price is not None:
@@ -100,9 +101,9 @@ def build_filter_url(
     # ── Filter segment ─────────────────────────────────────────────────────
     filter_parts: list[str] = []
 
-    # Category ID
+    # Category ID — use c{id} format (works reliably with all filters)
     if category_id is not None:
-        filter_parts.append(f"k0c{category_id}")
+        filter_parts.append(f"c{category_id}")
 
     if prefix:
         # Year (Erstzulassung)
